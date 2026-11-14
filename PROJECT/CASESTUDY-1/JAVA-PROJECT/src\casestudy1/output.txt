@@ -1,0 +1,75 @@
+==============================================================
+ CO-1 CASE STUDY 1 - Money and Pricing in an E-Commerce Catalog
+ (code matching the Word doc Refined Model skeleton)
+==============================================================
+
+--- 1. Bug: cart and invoice disagree by a cent - why double fails (Q1)
+  PASS  double: 0.1 + 0.2 != 0.3 in Java (it is 0.30000000000000004)
+  PASS  Money: 10 cents + 20 cents = 30 cents, exactly
+  PASS  Money: 19.99 EUR + 0.01 EUR = 20.00 EUR, exactly
+
+--- 2. Minor units: each currency keeps its own precision (Q1)
+  PASS  1050 minor EUR prints as 10.50 EUR
+  PASS  500 minor JPY prints as 500 JPY (0 minor units)
+  PASS  1250 minor KWD prints as 1.250 KWD (3 minor units)
+  PASS  Money.of("1.250", KWD) = 1250 fils
+  PASS  Money.of("500", JPY) = 500 minor units
+
+--- 3. Bug: negative prices are possible
+  PASS  Money of -1 cent cannot be created  ->  Money must not be negative: -1 minor units
+  PASS  Money.of("-5.00", EUR) cannot be created  ->  Money must not be negative: -5.00
+  PASS  Money.of("10.505", EUR) - excess precision (half a cent) is rejected, not rounded  ->  Amount 10.505 has excess precision - not exactly representable in EUR minor units
+  PASS  A Product with a negative price cannot be constructed  ->  Money must not be negative: -500 minor units
+
+--- 4. Bug: EUR and USD are silently added - no silent conversion (Q4)
+  PASS  100.00 EUR + 50.00 USD throws CurrencyMismatch (no silent conversion)  ->  Currency mismatch: cannot combine EUR with USD - convert explicitly via ExchangeService first
+  PASS  100.00 EUR - 50.00 USD throws CurrencyMismatch too  ->  Currency mismatch: cannot combine EUR with USD - convert explicitly via ExchangeService first
+  PASS  An EUR cart rejects a USD-priced product (CurrencyMismatch)  ->  Product SKU-USD is priced in USD but this cart is in EUR
+
+--- 5. Bug: discounts outside 0-100% are accepted (Q3)
+  PASS  Percentage.ofPercent(-1) is rejected  ->  Percent out of range: -1
+  PASS  Percentage.ofPercent(101) is rejected  ->  Percent out of range: 101
+  PASS  Percentage.ofPercent(250) is rejected  ->  Percent out of range: 250
+  PASS  Percentage.ofBasisPoints(-100) is rejected  ->  Percentage out of range 0..100%: -100 bp
+  PASS  Percentage.ofBasisPoints(10001) is rejected  ->  Percentage out of range 0..100%: 10001 bp
+
+--- 6. Percentage.applyTo / Money.minus(Percentage) - one HALF_EVEN rule, in one place (Q3)
+  PASS  15% off 100.00 EUR = 85.00 EUR, exactly - and Money.minus(Percentage) agrees
+  PASS  0% off leaves the price unchanged
+  PASS  100% off gives 0.00 EUR (never negative)
+  PASS  HALF_EVEN: 15% off 10.50 EUR = 8.92 EUR (892.5c rounds to 892c)
+  PASS  HALF_EVEN: 5% off 2.50 EUR = 2.38 EUR (237.5c rounds to 238c)
+  PASS  ofPercent(15) equals ofBasisPoints(1500) - equality is by value
+
+--- 7. Quantity is a positive-int value object (Q2)
+  PASS  Quantity.of(0) is rejected  ->  Quantity must be positive: 0
+  PASS  Quantity.of(-3) is rejected  ->  Quantity must be positive: -3
+  PASS  10.00 EUR x Quantity(3) = 30.00 EUR
+
+--- 8. Cart: CartLines unique by product, total() DERIVED - cart and invoice agree (Q1/Q2)
+  PASS  Re-adding the same product merges into ONE CartLine (not two lines)
+  PASS  Merged line quantity is 2 + 1 = 3
+  PASS  Adding a different product gives 2 lines
+  PASS  Cart total = 10.50 x 3 + 5.00 x 2 = 41.50 EUR
+  PASS  Invoice total computed a second, independent way from lines() agrees with cart total()
+  PASS  After removing the pen, total() is 31.50 EUR and still equals the sum of lines
+  PASS  lines() is encapsulated - the returned list cannot be mutated  ->  UnsupportedOperationException
+
+--- 9. ExchangeService: conversion is explicit - rate and date are inputs (Q4)
+  PASS  Explicit: 100.00 EUR -> USD at rate 1.10 on 2026-11-13 = 110.00 USD
+  PASS  A different stated rate gives a different, stated result: rate 1.20 -> 120.00 USD
+  PASS  Same inputs give the same result every time (pure, testable)
+
+--- 10. Refunds without negative prices - direction carried by type (Q5)
+  PASS  Refund magnitude is a positive 30.00 EUR and it carries its payment id PAY-123
+  PASS  A Refund with zero magnitude is rejected  ->  Refund magnitude must be positive: 0.00 EUR
+  PASS  A Refund with no payment id is rejected  ->  Refund must name the payment it reverses
+  PASS  Ledger: +100.00 EUR and the -30.00 EUR refund entry net to 70.00 EUR
+  PASS  A negative SignedMoney cannot become a Money - requireNonNegative() throws  ->  SignedMoney is negative (-30.00 EUR) and cannot be used as a Money/price
+  PASS  SignedMoney still checks currency: EUR ledger + USD entry is rejected  ->  Currency mismatch: cannot combine EUR with USD
+  PASS  Product price still cannot be built from a negative amount after refunds exist  ->  SignedMoney is negative (-30.00 EUR) and cannot be used as a Money/price
+
+==============================================================
+ RESULT: 46 passed, 0 failed
+ ALL CHECKS PASSED - every reported bug is prevented by the design.
+==============================================================
