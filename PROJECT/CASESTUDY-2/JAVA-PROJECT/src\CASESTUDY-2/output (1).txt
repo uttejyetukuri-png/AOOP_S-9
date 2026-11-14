@@ -1,0 +1,71 @@
+==============================================================
+ CO-1 CASE STUDY 2 - Order Lifecycle and State Demo (Model A)
+==============================================================
+
+--- 1. Illegal states are unreachable from a new order
+  PASS  An EMPTY order cannot be placed (Invariant 1)  ->  cannot place an empty order
+  PASS  A new (DRAFT) order cannot be paid  ->  Cannot perform this action in state DRAFT (requires PLACED)
+  PASS  A new (DRAFT) order cannot be shipped  ->  Cannot perform this action in state DRAFT (requires PAID)
+  PASS  A new (DRAFT) order cannot be delivered  ->  Cannot perform this action in state DRAFT (requires SHIPPED)
+
+--- 2. Lines: duplicate product merges, total follows the lines
+  PASS  Re-adding P-100 MERGES into one line - still 2 lines, not 3 (Invariant 5)
+  PASS  The merged P-100 line has quantity 3
+  PASS  total() = 500.00 x 3 + 250.00 x 1 = 1750.00 EUR
+  PASS  After removing P-200 in Draft, total() = 1500.00 EUR
+
+--- 3. Happy path: DRAFT -> PLACED -> PAID -> SHIPPED -> DELIVERED
+  PASS  A new order starts in DRAFT
+  PASS  No shipment exists in DRAFT (Invariant 4, 'if' direction)
+  PASS  place() moves DRAFT -> PLACED
+  PASS  pay() moves PLACED -> PAID
+  PASS  Still no shipment in PAID - it exists only after ship()
+  PASS  ship() moves PAID -> SHIPPED
+  PASS  Shipment is present exactly after ship(), with its tracking number
+  PASS  deliver() moves SHIPPED -> DELIVERED
+
+--- 4. THE Q2 PROOF: a cancelled order can NEVER be shipped
+  PASS  Cancelling from PAID works -> CANCELLED
+  PASS  BUG FIXED: ship() on the cancelled order is refused by the guard  ->  Cannot perform this action in state CANCELLED (requires PAID)
+  PASS  No shipment was recorded by the refused ship()
+
+--- 5. Shipped cannot be cancelled; DELIVERED and CANCELLED are terminal
+  PASS  A SHIPPED order cannot be cancelled  ->  Cannot cancel an order in state SHIPPED - only DRAFT, PLACED or PAID orders can be cancelled
+  PASS  A DELIVERED order cannot be cancelled  ->  Cannot cancel an order in state DELIVERED - only DRAFT, PLACED or PAID orders can be cancelled
+  PASS  A DELIVERED order cannot be paid (again)  ->  Cannot perform this action in state DELIVERED (requires PLACED)
+  PASS  A DELIVERED order cannot be shipped (again)  ->  Cannot perform this action in state DELIVERED (requires PAID)
+  PASS  A CANCELLED order cannot be paid - it is terminal too  ->  Cannot perform this action in state CANCELLED (requires PLACED)
+
+--- 6. Lines are locked once the order is placed
+  PASS  addLine after placement is refused  ->  Cannot perform this action in state PLACED (requires DRAFT)
+  PASS  removeLine after placement is refused  ->  Cannot perform this action in state PLACED (requires DRAFT)
+
+--- 7. ship() needs payment AND a real tracking number
+  PASS  ship() with a NULL tracking number is refused  ->  tracking
+  PASS  A blank tracking number cannot even be constructed  ->  Tracking number must not be blank
+  PASS  ship() from PLACED (unpaid) is refused - no shipping without payment  ->  Cannot perform this action in state PLACED (requires PAID)
+
+--- 8. Derived total: correct after EVERY Draft edit, frozen by the lock
+  PASS  After adding 500.00 x 1, total() = 500.00 EUR
+  PASS  After adding 250.00 x 2, total() = 1000.00 EUR
+  PASS  After removing P-100, total() = 500.00 EUR - recomputed, never stale
+  PASS  Editing lines after placement is refused (so the total cannot drift)  ->  Cannot perform this action in state PLACED (requires DRAFT)
+  PASS  Total is still 500.00 EUR after placement - it cannot drift (Q4)
+
+--- 9. Credit rule (Q5): limit 2000.00 EUR, outstanding 500.00 EUR
+  PASS  First 1500.00 EUR order PLACES (500.00 + 1500.00 = 2000.00 <= 2000.00)
+  PASS  Its 1500.00 EUR is RESERVED immediately - it counts against the limit
+  PASS  Second 1500.00 EUR order is REJECTED (would total 3500.00 EUR)  ->  Credit limit exceeded: outstanding 500.00 EUR + reserved 1500.00 EUR + order 1500.00 EUR would exceed the limit 2000.00 EUR
+  PASS  The rejected order stays in DRAFT - nothing was placed
+  PASS  Cancelling the first order through the service works
+  PASS  Its reservation is RELEASED - reserved is back to 0.00 EUR
+  PASS  With the credit freed, the second order now PLACES
+
+--- 10. The race: two 1500.00 EUR orders, one 2000.00 EUR limit, same instant
+  PASS  Exactly ONE of the two simultaneous orders was placed
+  PASS  The other was rejected - the limit was never breached
+
+==============================================================
+ RESULT: 43 passed, 0 failed
+ ALL CHECKS PASSED - every reported bug is prevented by the design.
+==============================================================
